@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Addendum Reviewer</title>
+<style>
+  :root {
+    --bg: #f4f3f0;
+    --surface: #ffffff;
+    --surface-2: #f8f7f5;
+    --border: #e2dfd9;
+    --border-strong: #cbc6bd;
+    --text: #1d1c1a;
+    --muted: #6b675f;
+    --accent: #d9480f;
+    --accent-ink: #ffffff;
+    --focus: #1c7ed6;
+    --danger: #c92a2a;
+    --mark-mix: 32%;
+    --shadow: 0 1px 2px rgb(0 0 0 / .05), 0 1px 1px rgb(0 0 0 / .03);
+    --radius: 8px;
+    --viewer-bg: #e9e7e2;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161614;
+      --surface: #1f1e1c;
+      --surface-2: #262522;
+      --border: #34322e;
+      --border-strong: #4a4741;
+      --text: #ecebe8;
+      --muted: #a29e95;
+      --accent: #ff7a3d;
+      --accent-ink: #1a0d05;
+      --focus: #4dabf7;
+      --danger: #ff8787;
+      --mark-mix: 45%;
+      --shadow: none;
+      --viewer-bg: #2b2a27;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #161614; --surface: #1f1e1c; --surface-2: #262522; --border: #34322e; --border-strong: #4a4741;
+    --text: #ecebe8; --muted: #a29e95; --accent: #ff7a3d; --accent-ink: #1a0d05; --focus: #4dabf7;
+    --danger: #ff8787; --mark-mix: 45%; --shadow: none; --viewer-bg: #2b2a27; color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+  .muted { color: var(--muted); font-weight: 400; }
+
+  /* ---------- layout ---------- */
+  #app {
+    display: grid; height: 100vh;
+    grid-template-columns: 300px minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas: "top top" "side main";
+  }
+  #app.viewing { grid-template-columns: 300px minmax(0, 1fr) var(--viewer-w, minmax(420px, 46%)); grid-template-areas: "top top top" "side main viewer"; }
+  header.top {
+    grid-area: top; display: flex; align-items: center; gap: 12px;
+    padding: 10px 20px; border-bottom: 1px solid var(--border); background: var(--surface);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 15px; letter-spacing: -.01em; }
+  .brand-mark { width: 22px; height: 22px; border-radius: 5px; background: var(--accent); display: grid; place-items: center; color: var(--accent-ink); }
+  .top .private { margin-left: auto; color: var(--muted); font-size: 12.5px; display: flex; align-items: center; gap: 6px; }
+  .top .private::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #2b8a3e; }
+
+  aside.side { grid-area: side; overflow-y: auto; border-right: 1px solid var(--border); background: var(--surface-2); padding: 16px 14px 24px; }
+  main { grid-area: main; overflow-y: auto; padding: 20px 24px 48px; }
+  #viewer { grid-area: viewer; display: flex; flex-direction: column; border-left: 1px solid var(--border); background: var(--viewer-bg); min-width: 0; position: relative; }
+  #v-resize {
+    position: absolute; top: 0; bottom: 0; left: -5px; width: 10px; z-index: 5;
+    cursor: col-resize; touch-action: none; display: flex; justify-content: center; align-items: center;
+  }
+  #v-resize::before { content: ""; width: 2px; height: 100%; background: transparent; transition: background .15s; }
+  #v-resize::after {
+    content: ""; position: absolute; width: 6px; height: 44px; border-radius: 3px;
+    background: var(--border-strong); border: 1px solid var(--surface);
+  }
+  #v-resize:hover::before, #v-resize:focus-visible::before, body.resizing #v-resize::before { background: var(--accent); }
+  #v-resize:hover::after, body.resizing #v-resize::after { background: var(--accent); }
+  #v-resize:focus-visible { outline: none; }
+  body.resizing { cursor: col-resize; user-select: none; -webkit-user-select: none; }
+  body.resizing #viewer-body { pointer-events: none; }
+
+  /* ---------- sidebar: lists ---------- */
+  .side h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  #lists { display: flex; flex-direction: column; gap: 8px; }
+  .list-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); border-left: 3px solid var(--c); }
+  .list-card.off { opacity: .55; }
+  .list-head { display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 8px; }
+  .list-head input[type=checkbox] { accent-color: var(--c); width: 15px; height: 15px; margin: 0; flex: none; }
+  .swatch { width: 18px; height: 18px; padding: 0; border: none; background: none; flex: none; cursor: pointer; }
+  .swatch::-webkit-color-swatch-wrapper { padding: 0; }
+  .swatch::-webkit-color-swatch { border: 1px solid var(--border-strong); border-radius: 4px; }
+  .swatch::-moz-color-swatch { border: 1px solid var(--border-strong); border-radius: 4px; }
+  .list-name { flex: 1; min-width: 0; border: 1px solid transparent; background: transparent; border-radius: 4px; padding: 3px 5px; font-weight: 600; }
+  .list-name:hover { border-color: var(--border); }
+  .list-name:focus { border-color: var(--border-strong); background: var(--surface-2); outline: none; }
+  .list-count { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .icon-btn { border: none; background: transparent; width: 26px; height: 26px; border-radius: 5px; display: inline-grid; place-items: center; color: var(--muted); flex: none; }
+  .icon-btn:hover { background: var(--surface-2); color: var(--text); }
+  .icon { display: inline-flex; }
+  .chev .icon { transition: transform .15s; }
+  .list-card.open .chev .icon { transform: rotate(180deg); }
+  .list-body { padding: 0 8px 8px; }
+  .terms { width: 100%; resize: vertical; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); padding: 7px 8px; font-size: 13px; line-height: 1.5; }
+  .terms:focus { outline: none; border-color: var(--focus); }
+  .list-actions { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-top: 6px; }
+  .hint { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
+  .link { border: none; background: none; padding: 0; color: var(--focus); font-size: 12.5px; white-space: nowrap; }
+  .link:hover { text-decoration: underline; }
+  .link.danger { color: var(--danger); }
+  .side-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .btn { border: 1px solid var(--border-strong); background: var(--surface); border-radius: 6px; padding: 5px 10px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+  .btn:hover { background: var(--surface-2); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  .btn.primary:hover { filter: brightness(1.05); background: var(--accent); }
+  .side-note { margin-top: 18px; font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+  /* ---------- drop zone & files ---------- */
+  #drop {
+    border: 1.5px dashed var(--border-strong); border-radius: 12px; background: var(--surface);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    padding: 56px 20px; text-align: center; cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  #drop:hover, body.dragging #drop { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 5%, var(--surface)); }
+  #drop .drop-icon { width: 44px; height: 44px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); display: grid; place-items: center; margin-bottom: 6px; }
+  #drop .drop-icon svg { width: 22px; height: 22px; }
+  #drop strong { font-size: 16px; }
+  #drop p { margin: 0; color: var(--muted); }
+  #app.has-files #drop { display: none; }
+
+  .files-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .files-head h2 { font-size: 13px; margin: 0; font-weight: 600; }
+  .files-head .spacer { flex: 1; }
+  #files { list-style: none; margin: 0 0 20px; padding: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+  #files:empty { display: none; }
+  .file-row { display: flex; align-items: center; gap: 10px; padding: 7px 8px 7px 12px; border-top: 1px solid var(--border); min-height: 40px; }
+  .file-row:first-child { border-top: none; }
+  .kind { flex: none; font-size: 10.5px; font-weight: 700; letter-spacing: .03em; padding: 2px 5px; border-radius: 4px; background: var(--surface-2); border: 1px solid var(--border); color: var(--muted); min-width: 38px; text-align: center; }
+  .kind-pdf { color: #c92a2a; }
+  .kind-docx { color: #1c7ed6; }
+  .kind-sheet { color: #2b8a3e; }
+  .file-row { flex-wrap: wrap; row-gap: 4px; }
+  .file-row .fname { min-width: 9em; }
+  .fname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+  .fstatus { color: var(--muted); font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .file-row.error .fstatus { color: var(--danger); white-space: normal; max-width: 50%; }
+  .file-row.done .fstatus { color: var(--text); }
+  .ocr-toggle { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); white-space: nowrap; cursor: pointer; }
+  .spinner { width: 12px; height: 12px; border: 2px solid var(--border-strong); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---------- toolbar ---------- */
+  #toolbar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  #toolbar input, #toolbar select { border: 1px solid var(--border-strong); background: var(--surface); border-radius: 6px; padding: 6px 10px; }
+  #toolbar input { flex: 1; min-width: 180px; }
+
+  /* ---------- dashboard ---------- */
+  .dash { margin-bottom: 24px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 10px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; box-shadow: var(--shadow); }
+  .tile-label { font-size: 12px; color: var(--muted); }
+  .tile-value { font-size: 24px; font-weight: 650; letter-spacing: -.02em; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .tile-sub { font-size: 12px; color: var(--muted); }
+  .panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; box-shadow: var(--shadow); min-width: 0; }
+  .panel h3 { font-size: 13px; margin: 0 0 8px; font-weight: 600; }
+  .panel .nf-head { margin-top: 16px; }
+  .bars { display: flex; flex-direction: column; gap: 2px; max-height: 300px; overflow-y: auto; }
+  .bar-row { display: grid; grid-template-columns: minmax(0, 13em) minmax(40px, 1fr) 3em; align-items: center; gap: 10px; border: none; background: none; padding: 4px 6px; border-radius: 5px; text-align: left; width: 100%; }
+  .bar-row:hover { background: var(--surface-2); }
+  .bar-row.selected { background: color-mix(in srgb, var(--c) 14%, transparent); }
+  .bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+  .bar-track { height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+  .bar-fill { display: block; height: 100%; border-radius: 4px; background: var(--c, var(--muted)); min-width: 3px; }
+  .bar-row.file .bar-fill { background: var(--border-strong); }
+  .bar-n { text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--c) 16%, transparent); color: var(--text); border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); white-space: nowrap; }
+  .chip.ghost { background: transparent; font-weight: 500; color: var(--muted); border-style: dashed; }
+  .chip.removable { cursor: pointer; }
+  .chip .icon svg { width: 12px; height: 12px; }
+
+  /* ---------- hit list ---------- */
+  .hits-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .hits-head h2 { font-size: 15px; margin: 0; }
+  .file-group { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; box-shadow: var(--shadow); }
+  .file-group > summary { display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; list-style: none; border-bottom: 1px solid var(--border); }
+  .file-group:not([open]) > summary { border-bottom: none; }
+  .file-group > summary::-webkit-details-marker { display: none; }
+  .file-group > summary .fname { font-weight: 600; }
+  .file-group > summary .count { color: var(--muted); font-size: 12.5px; }
+  .kw-group { padding: 10px 14px 6px; border-top: 1px solid var(--border); }
+  .kw-group:first-of-type { border-top: none; }
+  .kw-head { display: flex; align-items: center; gap: 8px; font-size: 12.5px; margin-bottom: 4px; }
+  .hit-rows { list-style: none; margin: 0; padding: 0; }
+  .hit-row { display: grid; grid-template-columns: 9.5em minmax(0, 1fr); gap: 12px; width: 100%; text-align: left; border: none; background: none; padding: 6px 8px; border-radius: 6px; border-left: 2px solid transparent; }
+  .hit-row:hover { background: var(--surface-2); }
+  .hit-row.active { background: color-mix(in srgb, var(--c) 12%, transparent); border-left-color: var(--c); }
+  .loc { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; padding-top: 1px; }
+  .snip { font-size: 13.5px; overflow-wrap: anywhere; }
+  .snip mark { background: color-mix(in srgb, var(--c) var(--mark-mix), transparent); color: inherit; font-weight: 650; border-radius: 3px; padding: 0 2px; }
+  .row-label { color: var(--muted); }
+  .tag { font-size: 10px; font-weight: 700; letter-spacing: .04em; padding: 1px 5px; border-radius: 4px; background: #f59f00; color: #2b1d00; }
+  .more { margin: 2px 0 6px 8px; }
+  .empty { padding: 32px 16px; text-align: center; color: var(--muted); background: var(--surface); border: 1px dashed var(--border-strong); border-radius: var(--radius); }
+
+  /* ---------- viewer ---------- */
+  .v-head { padding: 10px 12px 10px 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .v-row { display: flex; align-items: center; gap: 6px; }
+  #v-file { flex: 1; min-width: 0; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #v-loc { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 12.5px; }
+  .v-row2 { margin-top: 6px; align-items: flex-start; gap: 10px; }
+  .v-zoom { flex: none; display: inline-flex; align-items: center; border: 1px solid var(--border-strong); border-radius: 6px; overflow: hidden; background: var(--surface); }
+  .v-zoom button { border: none; background: none; height: 26px; min-width: 28px; padding: 0 6px; display: inline-grid; place-items: center; font-size: 12.5px; color: var(--text); }
+  .v-zoom button:hover:not(:disabled) { background: var(--surface-2); }
+  .v-zoom button:disabled { opacity: .35; cursor: default; }
+  .v-zoom .z-fit { border-left: 1px solid var(--border); font-weight: 600; }
+  #z-level { min-width: 44px; text-align: center; font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--muted); }
+  .v-nav button { border: 1px solid var(--border-strong); background: var(--surface); border-radius: 6px; height: 28px; padding: 0 8px; display: inline-flex; align-items: center; gap: 2px; font-size: 12.5px; }
+  .v-nav button:disabled { opacity: .4; cursor: default; }
+  .kbd-hint { font-size: 11.5px; color: var(--muted); margin-top: 4px; }
+  #viewer-body { flex: 1; overflow: auto; padding: 12px; position: relative; }
+  /* Always-visible scroll bars in the viewer (macOS hides them by default), so an
+     enlarged page can be moved left/right as well as up/down. */
+  #viewer-body::-webkit-scrollbar, .sheet-scroll::-webkit-scrollbar { width: 14px; height: 14px; }
+  #viewer-body::-webkit-scrollbar-track, .sheet-scroll::-webkit-scrollbar-track { background: var(--surface-2); }
+  #viewer-body::-webkit-scrollbar-thumb, .sheet-scroll::-webkit-scrollbar-thumb {
+    background: var(--border-strong); border-radius: 7px; border: 3px solid var(--surface-2); min-height: 40px; min-width: 40px;
+  }
+  #viewer-body::-webkit-scrollbar-thumb:hover, .sheet-scroll::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+  #viewer-body::-webkit-scrollbar-corner, .sheet-scroll::-webkit-scrollbar-corner { background: var(--surface-2); }
+  @supports not selector(::-webkit-scrollbar) {
+    #viewer-body, .sheet-scroll { scrollbar-width: auto; scrollbar-color: var(--border-strong) var(--surface-2); }
+  }
+  .pdf-page { position: relative; margin: 0 auto; background: #fff; box-shadow: 0 1px 4px rgb(0 0 0 / .2); }
+  .pdf-page canvas { width: 100%; height: 100%; display: block; }
+  .pdf-mark { position: absolute; border-radius: 2px; background: color-mix(in srgb, var(--c) 22%, transparent); mix-blend-mode: multiply; pointer-events: none; }
+  .pdf-mark.active { background: color-mix(in srgb, var(--c) 40%, transparent); outline: 2px solid var(--c); outline-offset: 1px; animation: pulse 1.2s ease-out 1; }
+  @keyframes pulse { 0% { outline-offset: 8px; outline-color: transparent; } 100% { outline-offset: 1px; } }
+  .docx-host { background: transparent; }
+  /* "safe" keeps an enlarged page's left edge reachable instead of centering it off-screen. */
+  .docx-host > [class$="-wrapper"] { background: transparent !important; padding: 0 !important; align-items: safe center !important; }
+  mark.doc-mark { background: color-mix(in srgb, var(--c) 30%, transparent); color: inherit; border-radius: 2px; }
+  mark.doc-mark.active { background: color-mix(in srgb, var(--c) 55%, transparent); outline: 2px solid var(--c); outline-offset: 1px; }
+  .sheet-note { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .sheet-scroll { overflow: auto; max-height: calc(100% - 22px); background: var(--surface); border: 1px solid var(--border); }
+  #viewer-body:has(.sheet-scroll) { display: flex; flex-direction: column; overflow: hidden; }
+  #viewer-body:has(.sheet-scroll) .sheet-scroll { flex: 1; max-height: none; }
+  table.sheet { border-collapse: collapse; font-size: 12.5px; }
+  table.sheet th, table.sheet td { border: 1px solid var(--border); padding: 3px 6px; white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+  table.sheet thead th { position: sticky; top: 0; background: var(--surface-2); z-index: 2; color: var(--muted); font-weight: 600; }
+  table.sheet tbody th { position: sticky; left: 0; background: var(--surface-2); z-index: 1; color: var(--muted); font-weight: 500; text-align: right; }
+  td.cell-hit { background: color-mix(in srgb, var(--c) 22%, transparent); }
+  td.cell-hit.active { background: color-mix(in srgb, var(--c) 45%, transparent); outline: 2px solid var(--c); outline-offset: -2px; font-weight: 600; }
+
+  /* ---------- misc ---------- */
+  #banner { background: #fff3bf; color: #5c3c00; padding: 10px 20px; border-bottom: 1px solid #f0d36b; font-size: 13px; grid-column: 1 / -1; }
+  #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 8px 14px; border-radius: 8px; font-size: 13px; z-index: 50; box-shadow: 0 4px 16px rgb(0 0 0 / .2); }
+  .drag-overlay { position: fixed; inset: 0; background: color-mix(in srgb, var(--accent) 10%, transparent); border: 3px dashed var(--accent); z-index: 40; pointer-events: none; display: none; align-items: center; justify-content: center; font-size: 20px; font-weight: 650; color: var(--accent); }
+  body.dragging.files-loaded .drag-overlay { display: flex; }
+
+  /* ---------- narrow screens ---------- */
+  @media (max-width: 1150px) {
+    #app.viewing { grid-template-columns: 300px minmax(0, 1fr); grid-template-areas: "top top" "side main"; }
+    #viewer { position: fixed; inset: 0 0 0 auto; width: var(--viewer-w, min(640px, 100vw)); max-width: 100vw; z-index: 30; box-shadow: -8px 0 24px rgb(0 0 0 / .18); }
+  }
+  @media (max-width: 760px) {
+    #app, #app.viewing { display: block; height: auto; }
+    aside.side { border-right: none; border-bottom: 1px solid var(--border); }
+    main { padding: 16px; }
+    header.top { padding: 10px 16px; }
+    .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .panels { grid-template-columns: minmax(0, 1fr); }
+    .hit-row { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+    .top .private { display: none; }
+    #viewer { width: 100vw; }
+    #v-resize { display: none; }
+  }
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx-preview@0.3.0/dist/docx-preview.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
+<script src="lists.js"></script>
+<script src="matcher.js"></script>
+<script src="ocr.js"></script>
+<script src="extract.js"></script>
+<script src="viewer.js"></script>
+<script src="app.js"></script>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/></svg>
+      </span>
+      Addendum Reviewer
+    </div>
+    <span class="private" title="Files are read inside this browser tab and never uploaded">Files stay on this computer</span>
+  </header>
+  <div id="banner" hidden></div>
+
+  <aside class="side">
+    <h2>Word lists</h2>
+    <div id="lists"></div>
+    <div class="side-actions">
+      <button class="btn" id="new-list" type="button">+ New list</button>
+      <button class="btn" id="import-lists" type="button">Import</button>
+      <button class="btn" id="export-lists" type="button">Export</button>
+      <input type="file" id="import-input" accept=".json,.txt,.csv" hidden>
+    </div>
+    <p class="side-note">Checked lists are searched in every file. Edits re-run the search instantly. Lists are saved in this browser — use Export to back them up or share them.</p>
+  </aside>
+
+  <main>
+    <div id="drop" role="button" tabindex="0" aria-label="Add files">
+      <span class="drop-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/></svg></span>
+      <strong>Drop bid documents here</strong>
+      <p>PDF (including scans), Word .docx, Excel and CSV — as many as you like.</p>
+      <p>or click to choose files</p>
+    </div>
+    <input type="file" id="file-input" multiple accept=".pdf,.docx,.docm,.xlsx,.xlsm,.xls,.xlsb,.csv,.ods,.doc" hidden>
+
+    <div class="files-head" id="files-head" hidden>
+      <h2>Files</h2>
+      <span class="muted" id="file-count"></span>
+      <span class="spacer"></span>
+      <button class="btn primary" id="add-more" type="button">+ Add files</button>
+      <button class="btn" id="clear-files" type="button">Clear all</button>
+    </div>
+    <ul id="files"></ul>
+
+    <div id="toolbar" hidden>
+      <input id="filter-text" type="search" placeholder="Search within hits…" aria-label="Search within hits">
+      <select id="filter-list" aria-label="Filter by list"></select>
+    </div>
+    <div id="results"></div>
+  </main>
+
+  <section id="viewer" hidden aria-label="Document viewer">
+    <div id="v-resize" role="separator" aria-orientation="vertical" aria-label="Resize document viewer" tabindex="0"
+      title="Drag to resize · double-click to reset"></div>
+    <div class="v-head">
+      <div class="v-row">
+        <span id="v-file"></span>
+        <span class="v-nav">
+          <button id="v-prev" type="button" title="Previous hit (↑ or k)">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg>Prev</button>
+          <button id="v-next" type="button" title="Next hit (↓ or j)">Next
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></button>
+        </span>
+        <button class="icon-btn" id="v-close" type="button" title="Close (Esc)" aria-label="Close viewer">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="v-row v-row2">
+        <div id="v-loc"></div>
+        <span class="v-zoom" role="group" aria-label="Zoom">
+          <button id="z-out" type="button" title="Zoom out (−)" aria-label="Zoom out">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+          <span id="z-level" aria-live="polite">100%</span>
+          <button id="z-in" type="button" title="Zoom in (+)" aria-label="Zoom in">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+          <button id="z-fit" type="button" class="z-fit" title="Fit to panel width (0)">Fit</button>
+        </span>
+      </div>
+    </div>
+    <div id="viewer-body"></div>
+  </section>
+</div>
+<div class="drag-overlay" aria-hidden="true">Drop to add files</div>
+<div id="toast" role="status" hidden></div>
+</body>
+</html>
